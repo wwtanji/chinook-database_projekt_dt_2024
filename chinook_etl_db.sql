@@ -290,13 +290,98 @@ LEFT JOIN
                  AND EXTRACT(MINUTE FROM i.InvoiceDate) = dt.minute
                  AND EXTRACT(SECOND FROM i.InvoiceDate) = dt.second; -- join with the time table
 
-SELECT * FROM dim_albums;
-SELECT * FROM dim_artist;
-SELECT * FROM dim_customers;
-SELECT * FROM dim_employees;
-SELECT * FROM dim_track_genre;
-SELECT * FROM dim_tracks;
-SELECT * FROM dim_genres;
-SELECT * FROM dim_addresses;
-SELECT * FROM dim_time;
-SELECT * FROM dim_date;
+
+DROP TABLE IF EXISTS album_staging;
+DROP TABLE IF EXISTS artist_staging;
+DROP TABLE IF EXISTS customer_staging;
+DROP TABLE IF EXISTS employee_staging;
+DROP TABLE IF EXISTS genre_staging;
+DROP TABLE IF EXISTS invoiceline_staging;
+DROP TABLE IF EXISTS invoice_staging;
+DROP TABLE IF EXISTS mediatype_staging;
+DROP TABLE IF EXISTS playlisttrack_staging;
+DROP TABLE IF EXISTS track_staging;
+
+
+-- Analysis
+CREATE SCHEMA analysis;
+USE SCHEMA CAT_CHINOOK.ANALYSIS;
+
+CREATE OR REPLACE VIEW analysis.genre_track_sales_stats AS
+SELECT
+    g.genre_name AS Genre, -- Назва жанру
+    t.track_name AS Track, -- Назва треку
+    SUM(f.Quantity) AS Total_Sales, -- Загальна кількість проданих одиниць
+    SUM(f.Total) AS Total_Revenue -- Загальна виручка
+FROM etl_staging.fact_sales f -- Використовується правильна схема
+    JOIN etl_staging.dim_tracks t ON f.dim_tracks_trackId = t.trackId -- З'єднання з таблицею треків
+    JOIN etl_staging.dim_track_genre tg ON t.trackId = tg.dim_track_trackId -- З'єднання з таблицею жанрів-треків
+    JOIN etl_staging.dim_genres g ON tg.dim_genre_genreId = g.genreId -- З'єднання з таблицею жанрів
+GROUP BY
+    g.genre_name,
+    t.track_name
+ORDER BY Total_Revenue DESC;
+
+CREATE OR REPLACE VIEW analysis.employee_performance_stats AS
+SELECT
+    ROW_NUMBER() OVER (ORDER BY e.employeeId) AS Employee_ID, -- Послідовний ID для працівників
+    e.employee_age AS Age, -- Вік працівника
+    e.employee_nationality AS Nationality, -- Національність працівника
+    COUNT(DISTINCT f.salesId) AS Total_Interactions, -- Загальна кількість взаємодій із клієнтами
+    SUM(f.Total) AS Total_Revenue -- Сумарний дохід від клієнтів
+FROM etl_staging.dim_employees e
+    LEFT JOIN etl_staging.fact_sales f ON e.employeeId = f.employeeId -- З'єднання з таблицею продажів
+GROUP BY
+    e.employeeId,
+    e.employee_age,
+    e.employee_nationality
+ORDER BY Employee_ID ASC;
+
+SELECT * FROM analysis.employee_performance_stats;
+
+CREATE OR REPLACE VIEW analysis.customer_engagement_stats AS
+SELECT
+    c.customerId AS Customer_ID,
+    c.customer_nationality AS Nationality,
+    COUNT(f.salesId) AS Total_Purchases, 
+    SUM(f.Total) AS Total_Spending
+FROM etl_staging.fact_sales f
+    JOIN etl_staging.dim_customers c ON f.customerId = c.customerId
+GROUP BY
+    c.customerId,
+    c.customer_nationality
+ORDER BY Total_Spending DESC;
+
+CREATE OR REPLACE VIEW analysis.composer_performance_stats AS
+SELECT
+    t.track_author AS Composer, 
+    COUNT(DISTINCT f.salesId) AS Total_Tracks_Sold, 
+    SUM(f.Total) AS Total_Revenue, 
+    ROUND(AVG(f.Total), 2) AS Avg_Revenue_Per_Track
+FROM etl_staging.fact_sales f
+    JOIN etl_staging.dim_tracks t ON f.dim_tracks_trackId = t.trackId
+WHERE
+    t.track_author IS NOT NULL 
+GROUP BY
+    t.track_author
+ORDER BY Total_Revenue DESC;
+
+SELECT * FROM analysis.composer_performance_stats;
+
+
+CREATE OR REPLACE VIEW analysis.genre_yearly_revenue_stats AS
+SELECT g.genre_name AS Genre, 
+    d.year AS Year, 
+    SUM(f.Total) AS Total_Revenue 
+FROM
+    etl_staging.fact_sales f
+    JOIN etl_staging.dim_tracks t ON f.dim_tracks_trackId = t.trackId
+    JOIN etl_staging.dim_track_genre tg ON t.trackId = tg.dim_track_trackId 
+    JOIN etl_staging.dim_genres g ON tg.dim_genre_genreId = g.genreId
+    JOIN etl_staging.dim_date d ON f.dateId = d.dateId
+GROUP BY
+    g.genre_name,
+    d.year
+ORDER BY d.year, Total_Revenue DESC;
+
+SELECT * FROM analysis.genre_yearly_revenue_stats;
