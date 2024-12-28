@@ -1,4 +1,4 @@
-﻿# Implementácia ETL procesu pre analýzu dát z databázy Chinook
+# Implementácia ETL procesu pre analýzu dát z databázy Chinook
 
 Tento repozitár obsahuje implementáciu ETL procesu pre analýzu dát z databázy Chinook. Proces zahŕňa kroky na extrahovanie, transformovanie a načítanie dát do dimenzionálneho modelu v Snowflake. Tento model umožňuje vizualizáciu a analýzu údajov o hudobných albumoch, skladbách, zákazníkoch a predajoch.
 
@@ -125,8 +125,8 @@ V tejto fáze sa vykonávalo čistenie, transformácia a obohacovanie údajov zo
 
 - Dimenzia `dim_albums` bola vytvorená na základe tabuľky `album_staging`. Obsahuje unikátne informácie o albumoch, ich názvoch a pridružených umelcoch.
 
-***Typ dimenzie: SCD1 (Slowly Changing Dimensions - Overwrite Old Value)***  
-Informácie o albumoch môžu byť aktualizované bez uloženia historických zmien.
+> **Typ dimenzie: _SCD1 (Slowly Changing Dimensions - Overwrite Old Value)_**<br>
+> Informácie o albumoch môžu byť aktualizované bez uloženia historických zmien.
 
 ```sql
 CREATE OR REPLACE TABLE dim_albums AS
@@ -137,7 +137,9 @@ SELECT
 FROM album_staging;
 ```
 
-- `dim_artist` - Táto tabuľka obsahuje jedinečné informácie o umelcoch, vrátane ich identifikátorov a mien.<br> ***Typ dimenzie: SCD0 (Slowly Changing Dimensions - Pôvodná hodnota zostáva nemenná)***<br> Mená umelcov sa považujú za statické.
+- `dim_artist` - Táto tabuľka obsahuje jedinečné informácie o umelcoch, vrátane ich identifikátorov a mien.
+> **Typ dimenzie: _SCD0 (Slowly Changing Dimensions - Pôvodná hodnota zostáva nemenná)_**<br>
+> Mená umelcov sa považujú za statické.
 
 ```sql
 CREATE OR REPLACE TABLE dim_artist AS
@@ -147,7 +149,11 @@ SELECT
 FROM artist_staging;
 ```
 
-- `dim_customers` - Táto tabuľka poskytuje podrobnosti o zákazníkoch, vrátane národnosti. Polia veku a pohlavia sú ponechané ako NULL z dôvodu chýbajúcich údajov.<br> ***Typ dimenzie: SCD0 (Slowly Changing Dimensions - Pôvodná hodnota zostáva nemenná)***<br> Demografické údaje zákazníkov sa v tomto súbore predpokladajú ako nemenné.
+- `dim_customers` - Táto tabuľka poskytuje podrobnosti o zákazníkoch, vrátane národnosti. Polia veku a pohlavia sú ponechané ako NULL z dôvodu chýbajúcich údajov.
+
+> **Typ dimenzie: _SCD0 (Slowly Changing Dimensions - Pôvodná hodnota zostáva nemenná)_**<br>
+> Demografické údaje zákazníkov sa v tomto súbore predpokladajú ako nemenné.
+
 ```sql
 CREATE OR REPLACE TABLE dim_customers AS
 SELECT DISTINCT
@@ -158,7 +164,9 @@ SELECT DISTINCT
 FROM customer_staging;
 ```
 - `dim_employees` - Obsahuje podrobnosti o zamestnancoch, vrátane ich veku a národnosti. Pohlavie je ponechané ako NULL z dôvodu chýbajúcich údajov.
-<br> ***Typ dimenzie: SCD1 (Slowly Changing Dimensions - Prepísanie starej hodnoty).*** Údaje o zamestnancoch môžu byť aktualizované podľa potreby.<br> 
+
+> **Typ dimenzie: _SCD1 (Slowly Changing Dimensions - Prepísanie starej hodnoty)_**<br>
+> Údaje o zamestnancoch môžu byť aktualizované podľa potreby.
 
 ```sql
 CREATE OR REPLACE TABLE dim_employees AS
@@ -168,11 +176,14 @@ SELECT DISTINCT
     Country AS employee_nationality,
     NULL AS employee_gender
 FROM employee_staging;
-
 ```
 
-- `dim_track_genre` - Kombinuje informácie o skladbách a žánroch, čím vytvára vzťah medzi týmito dvoma prvkami.<br> ***Typ dimenzie: SCD0 (Slowly Changing Dimensions - Zachovanie pôvodnej hodnoty).***<br>Asociácia medzi skladbami a žánrami sa považuje za statickú. 
-<br>Tabuľka bola vytvorená pomocou `JOIN` medzi tabuľkami `genre_staging g` a počiatočnou tabuľkou `track_staging`.
+- `dim_track_genre` - Kombinuje informácie o skladbách a žánroch, čím vytvára vzťah medzi týmito dvoma prvkami.<br> 
+
+> **Typ dimenzie: _SCD0 (Slowly Changing Dimensions - Zachovanie pôvodnej hodnoty)_**<br>
+> Asociácia medzi skladbami a žánrami sa považuje za statickú.
+
+Tabuľka bola vytvorená pomocou `JOIN` medzi tabuľkami `genre_staging g` a počiatočnou tabuľkou `track_staging`.
 
 ```sql
 CREATE OR REPLACE TABLE dim_track_genre AS
@@ -185,7 +196,9 @@ ON t.GenreId = g.GenreId;
 ```
 
 - `dim_tracks` - Obsahuje detaily o skladbách, vrátane názvov, autorov, pridružených albumov a playlistov.
-<br> ***Typ dimenzie: SCD0 (Slowly Changing Dimensions - Zachovanie pôvodnej hodnoty).***<br> Informácie o skladbách sú v tomto datasete statické.<br> 
+
+> **Typ dimenzie: _SCD0 (Slowly Changing Dimensions - Zachovanie pôvodnej hodnoty)_**<br>
+> Informácie o skladbách sú v tomto datasete statické.
 
 Tabuľka bola vytvorená pomocou `LEFT JOIN` medzi tabuľkou `dim_albums a` a počiatočnou tabuľkou `track_staging t`.
 
@@ -202,9 +215,10 @@ LEFT JOIN dim_albums a
 ON t.AlbumId = a.ALBUMID;
 ```
 
-- `dim_genres` - Obsahuje informácie o žánroch s unikátnymi identifikátormi a názvami.<br>
+- `dim_genres` - Obsahuje informácie o žánroch s unikátnymi identifikátormi a názvami.
 
-_**Typ dimenzie: SCD0 (Slowly Changing Dimensions - Zachovanie pôvodnej hodnoty).**_<br>Predpokladá sa, že žánre sa v priebehu času nemenia.
+> **Typ dimenzie: _SCD0 (Slowly Changing Dimensions - Zachovanie pôvodnej hodnoty)_**<br>
+> Predpokladá sa, že žánre sa v priebehu času nemenia.
 
 ```sql
 CREATE OR REPLACE TABLE dim_genres AS
@@ -213,10 +227,10 @@ SELECT DISTINCT
     NAME AS genre_name
 FROM GENRE_STAGING;
 ```
-- `dim_addresses` - Táto tabuľka poskytuje podrobnosti o adresách extrahované z tabuľky `employee_staging`.<br>
+- `dim_addresses` - Táto tabuľka poskytuje podrobnosti o adresách extrahované z tabuľky `employee_staging`.
 
-_**Typ dimenzie: SCD0 (Slowly Changing Dimensions - Zachovanie pôvodnej hodnoty)**_<br> 
-Informácie o adresách sú v tomto datasete statické.<br> Pri vytváraní tejto tabuľky bol použitý filter `WHERE ADDRESS IS NOT NULL`, aby sa zahrnuli iba záznamy, kde je adresa vyplnená.
+> **Typ dimenzie: _SCD0 (Slowly Changing Dimensions - Zachovanie pôvodnej hodnoty)_**<br>
+> Informácie o adresách sú v tomto datasete statické a nemenia sa.
 
 ```sql
 CREATE OR REPLACE TABLE dim_addresses AS
@@ -230,12 +244,10 @@ FROM employee_staging
 WHERE ADDRESS IS NOT NULL;
 ```
 
-- `dim_time` - Extrahuje časové detaily, ako sú hodiny, minúty a sekundy, z dátumu faktúry.<br> 
+- `dim_time` - Extrahuje časové detaily, ako sú hodiny, minúty a sekundy, z dátumu faktúry.
 
-_**Typ dimenzie: SCD0 (Slowly Changing Dimensions - Zachovanie pôvodnej hodnoty).**_<br> 
-Informácie o čase sú nemenné.
-
-Tabuľka `dim_time`, ktorá vytvára unikátne ID pre časové záznamy a rozkladá fakturačný dátum na hodiny, minúty, sekundy a dátum nákupu.
+> **Typ dimenzie: _SCD0 (Slowly Changing Dimensions - Zachovanie pôvodnej hodnoty)_**<br>
+> Informácie o čase sú nemenné.
 
 ```sql
 CREATE OR REPLACE TABLE dim_time AS
@@ -246,11 +258,12 @@ SELECT DISTINCT
     EXTRACT(SECOND FROM CAST(InvoiceDate AS TIMESTAMP)) AS second, 
     CAST(InvoiceDate AS DATE) AS purchase_date 
 FROM invoice_staging;
+
 ```
+- `dim_date` - Obsahuje podrobné informácie o dátumoch na časovú analýzu.
 
-- `dim_date` - Obsahuje podrobné informácie o dátumoch na časovú analýzu.<br>
-
-_**Typ dimenzie: SCD0 (Slowly Changing Dimensions - Zachovanie pôvodnej hodnoty)**_<br>. Dátumy sa časom nemenia.
+> **Typ dimenzie: _SCD0 (Slowly Changing Dimensions - Zachovanie pôvodnej hodnoty)_**<br>
+> Dátumy sa časom nemenia.
 
 ```sql
 CREATE OR REPLACE TABLE dim_date AS
@@ -268,7 +281,7 @@ FROM invoice_staging;
 
 - `fact_sales` - Konsoliduje transakčné údaje s metrikami, ako sú Quantity, UnitPrice a Total. Obsahuje aj cudzie kľúče spájajúce príslušné dimenzionálne tabuľky.
 
-> **Typ faktovej tabuľky**: _Additive Fact Table_  
+> **Typ faktovej tabuľky**: _Additive Fact Table_<br>
 > Predajné údaje je možné agregovať v rôznych dimenziách, ako sú zákazníci, zamestnanci, produkty, alebo čas.
 
 ```sql
@@ -429,3 +442,9 @@ GROUP BY
 ORDER BY
     d.year, Total_Revenue DESC;
 ```
+
+--- 
+
+## **4 Vizualizácia dát**
+
+
