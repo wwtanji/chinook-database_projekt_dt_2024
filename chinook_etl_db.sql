@@ -261,34 +261,34 @@ FROM invoice_staging;
 -- Sales
 CREATE OR REPLACE TABLE fact_sales AS
 SELECT
-    ROW_NUMBER() OVER (ORDER BY i.InvoiceId) AS salesId, -- unique identifier for the sale
-    il.Quantity AS Quantity, -- quantity of items
-    il.UnitPrice AS UnitPrice, -- unit price of the item
-    il.Quantity * il.UnitPrice AS Total, -- total amount
-    d.dateId AS dateId, -- date identifier (from the `dim_date` table)
-    dt.timeId AS timeId, -- time identifier (from the `dim_time` table)
-    c.CustomerId AS customerId, -- customer identifier
-    e.EmployeeId AS employeeId, -- employee identifier
-    a.adressId AS adressId, -- address identifier
-    t.TrackId AS dim_tracks_trackId -- track identifier
+    ROW_NUMBER() OVER (ORDER BY i.InvoiceId) AS salesId,
+    il.Quantity AS Quantity,
+    il.UnitPrice AS UnitPrice,
+    il.Quantity * il.UnitPrice AS Total,
+    d.dateId AS dateId,
+    dt.timeId AS timeId,
+    c.CustomerId AS customerId,
+    e.EmployeeId AS employeeId,
+    a.adressId AS adressId,
+    t.TrackId AS dim_tracks_trackId
 FROM
     invoice_staging i
 JOIN
-    invoiceline_staging il ON i.InvoiceId = il.InvoiceId -- join with invoice line details
+    invoiceline_staging il ON i.InvoiceId = il.InvoiceId
 JOIN
-    customer_staging c ON i.CustomerId = c.CustomerId -- join with customers
+    customer_staging c ON i.CustomerId = c.CustomerId
 LEFT JOIN
-    employee_staging e ON c.SupportRepId = e.EmployeeId -- join with employees (if available)
+    employee_staging e ON c.SupportRepId = e.EmployeeId
 JOIN
-    track_staging t ON il.TrackId = t.TrackId -- join with tracks
+    track_staging t ON il.TrackId = t.TrackId
 LEFT JOIN
-    dim_addresses a ON i.BillingAddress = a.street -- join with addresses (if available)
+    dim_addresses a ON i.BillingAddress = a.street 
 LEFT JOIN
-    dim_date d ON CAST(i.InvoiceDate AS DATE) = d.date -- join with the date table
+    dim_date d ON CAST(i.InvoiceDate AS DATE) = d.date 
 LEFT JOIN
     dim_time dt ON EXTRACT(HOUR FROM i.InvoiceDate) = dt.hour
                  AND EXTRACT(MINUTE FROM i.InvoiceDate) = dt.minute
-                 AND EXTRACT(SECOND FROM i.InvoiceDate) = dt.second; -- join with the time table
+                 AND EXTRACT(SECOND FROM i.InvoiceDate) = dt.second;
 
 
 DROP TABLE IF EXISTS album_staging;
@@ -309,79 +309,81 @@ USE SCHEMA CAT_CHINOOK.ANALYSIS;
 
 CREATE OR REPLACE VIEW analysis.genre_track_sales_stats AS
 SELECT
-    g.genre_name AS Genre, -- Назва жанру
-    t.track_name AS Track, -- Назва треку
-    SUM(f.Quantity) AS Total_Sales, -- Загальна кількість проданих одиниць
-    SUM(f.Total) AS Total_Revenue -- Загальна виручка
-FROM etl_staging.fact_sales f -- Використовується правильна схема
-    JOIN etl_staging.dim_tracks t ON f.dim_tracks_trackId = t.trackId -- З'єднання з таблицею треків
-    JOIN etl_staging.dim_track_genre tg ON t.trackId = tg.dim_track_trackId -- З'єднання з таблицею жанрів-треків
-    JOIN etl_staging.dim_genres g ON tg.dim_genre_genreId = g.genreId -- З'єднання з таблицею жанрів
+    g.genre_name AS Genre, -- Vyber nazov zanru z tabulky dim_genres
+    t.track_name AS Track, -- Vyber nazov skladby z tabulky dim_tracks
+    SUM(f.Quantity) AS Total_Sales, -- Celkova predana kvantita skladieb
+    SUM(f.Total) AS Total_Revenue -- Celkove prijmy z predaja skladieb
+FROM etl_staging.fact_sales f -- Faktova tabulka predajov
+    JOIN etl_staging.dim_tracks t ON f.dim_tracks_trackId = t.trackId -- Pripojenie na tabulku skladieb
+    JOIN etl_staging.dim_track_genre tg ON t.trackId = tg.dim_track_trackId -- Pripojenie na tabulku zanrov-skladieb
+    JOIN etl_staging.dim_genres g ON tg.dim_genre_genreId = g.genreId -- Pripojenie na tabulku zanrov
 GROUP BY
-    g.genre_name,
-    t.track_name
-ORDER BY Total_Revenue DESC;
+    g.genre_name, -- Zoskupenie podla zanru
+    t.track_name -- Zoskupenie podla nazvu skladby
+ORDER BY Total_Revenue DESC; -- Triedenie podla celkovych prijmov v zostupnom poradi
 
 CREATE OR REPLACE VIEW analysis.employee_performance_stats AS
 SELECT
-    ROW_NUMBER() OVER (ORDER BY e.employeeId) AS Employee_ID, -- Послідовний ID для працівників
-    e.employee_age AS Age, -- Вік працівника
-    e.employee_nationality AS Nationality, -- Національність працівника
-    COUNT(DISTINCT f.salesId) AS Total_Interactions, -- Загальна кількість взаємодій із клієнтами
-    SUM(f.Total) AS Total_Revenue -- Сумарний дохід від клієнтів
-FROM etl_staging.dim_employees e
-    LEFT JOIN etl_staging.fact_sales f ON e.employeeId = f.employeeId -- З'єднання з таблицею продажів
+    ROW_NUMBER() OVER (ORDER BY e.employeeId) AS Employee_ID, -- Posloupny ID pre zamestnancov
+    e.employee_age AS Age, -- Vek zamestnanca
+    e.employee_nationality AS Nationality, -- Narodnost zamestnanca
+    COUNT(DISTINCT f.salesId) AS Total_Interactions, -- Celkovy pocet interakcii s klientmi
+    SUM(f.Total) AS Total_Revenue -- Celkove prijmy od klientov
+FROM etl_staging.dim_employees e -- Tabulka zamestnancov
+LEFT JOIN etl_staging.fact_sales f ON e.employeeId = f.employeeId -- Pripojenie na tabulku predajov
 GROUP BY
-    e.employeeId,
-    e.employee_age,
-    e.employee_nationality
-ORDER BY Employee_ID ASC;
+    e.employeeId, -- Zoskupenie podla ID zamestnanca
+    e.employee_age, -- Zoskupenie podla veku zamestnanca
+    e.employee_nationality -- Zoskupenie podla narodnosti zamestnanca
+ORDER BY Employee_ID ASC; -- Triedenie podla posloupneho ID zamestnanca vzostupne
 
 SELECT * FROM analysis.employee_performance_stats;
 
 CREATE OR REPLACE VIEW analysis.customer_engagement_stats AS
 SELECT
-    c.customerId AS Customer_ID,
-    c.customer_nationality AS Nationality,
-    COUNT(f.salesId) AS Total_Purchases, 
-    SUM(f.Total) AS Total_Spending
-FROM etl_staging.fact_sales f
-    JOIN etl_staging.dim_customers c ON f.customerId = c.customerId
+    c.customerId AS Customer_ID, -- Vyber ID zakaznika z tabulky dim_customers
+    c.customer_nationality AS Nationality, -- Vyber narodnost zakaznika
+    COUNT(f.salesId) AS Total_Purchases, -- Pocet celkovych nakupov zakaznika
+    SUM(f.Total) AS Total_Spending -- Celkove vydavky zakaznika na nakupy
+FROM etl_staging.fact_sales f -- Faktova tabulka predajov
+    JOIN etl_staging.dim_customers c ON f.customerId = c.customerId -- Pripojenie na tabulku zakaznikov
 GROUP BY
-    c.customerId,
-    c.customer_nationality
-ORDER BY Total_Spending DESC;
+    c.customerId, -- Zoskupenie podla ID zakaznika
+    c.customer_nationality -- Zoskupenie podla narodnosti zakaznika
+ORDER BY Total_Spending DESC; -- Triedenie podla celkovych vydavkov v zostupnom poradi
 
 CREATE OR REPLACE VIEW analysis.composer_performance_stats AS
 SELECT
-    t.track_author AS Composer, 
-    COUNT(DISTINCT f.salesId) AS Total_Tracks_Sold, 
-    SUM(f.Total) AS Total_Revenue, 
-    ROUND(AVG(f.Total), 2) AS Avg_Revenue_Per_Track
-FROM etl_staging.fact_sales f
-    JOIN etl_staging.dim_tracks t ON f.dim_tracks_trackId = t.trackId
+    t.track_author AS Composer, -- Vyber meno skladatela z tabulky dim_tracks
+    COUNT(DISTINCT f.salesId) AS Total_Tracks_Sold, -- Pocet unikatnych predanych skladieb
+    SUM(f.Total) AS Total_Revenue, -- Celkove prijmy z predaja skladieb
+    ROUND(AVG(f.Total), 2) AS Avg_Revenue_Per_Track -- Priemerne prijmy na skladbu, zaokruhlene na 2 desatinne miesta
+FROM etl_staging.fact_sales f -- Faktova tabulka predajov
+    JOIN etl_staging.dim_tracks t ON f.dim_tracks_trackId = t.trackId -- Pripojenie na tabulku skladieb
 WHERE
-    t.track_author IS NOT NULL 
+    t.track_author IS NOT NULL -- Filtrovanie na skladby, kde je autor zadany
 GROUP BY
-    t.track_author
-ORDER BY Total_Revenue DESC;
+    t.track_author -- Zoskupenie podla mena skladatela
+ORDER BY Total_Revenue DESC; -- Triedenie podla celkovych prijmov v zostupnom poradi
 
 SELECT * FROM analysis.composer_performance_stats;
 
 
 CREATE OR REPLACE VIEW analysis.genre_yearly_revenue_stats AS
-SELECT g.genre_name AS Genre, 
-    d.year AS Year, 
-    SUM(f.Total) AS Total_Revenue 
+SELECT 
+    g.genre_name AS Genre, -- Vyber nazov zanru z tabulky dim_genres
+    d.year AS Year, -- Vyber rok z tabulky dim_date
+    SUM(f.Total) AS Total_Revenue -- Spocitaj celkove prijmy z tabulky fact_sales
 FROM
-    etl_staging.fact_sales f
-    JOIN etl_staging.dim_tracks t ON f.dim_tracks_trackId = t.trackId
-    JOIN etl_staging.dim_track_genre tg ON t.trackId = tg.dim_track_trackId 
-    JOIN etl_staging.dim_genres g ON tg.dim_genre_genreId = g.genreId
-    JOIN etl_staging.dim_date d ON f.dateId = d.dateId
+    etl_staging.fact_sales f -- Hlavna faktova tabulka predajov
+    JOIN etl_staging.dim_tracks t ON f.dim_tracks_trackId = t.trackId -- Pripojenie na tabulku skladieb
+    JOIN etl_staging.dim_track_genre tg ON t.trackId = tg.dim_track_trackId -- Pripojenie na tabulku zanrov skladieb
+    JOIN etl_staging.dim_genres g ON tg.dim_genre_genreId = g.genreId -- Pripojenie na tabulku zanrov
+    JOIN etl_staging.dim_date d ON f.dateId = d.dateId -- Pripojenie na dimenziu datumov
 GROUP BY
-    g.genre_name,
-    d.year
-ORDER BY d.year, Total_Revenue DESC;
+    g.genre_name, -- Zoskupenie podla nazvu zanru
+    d.year -- Zoskupenie podla roku
+ORDER BY d.year, -- Triedenie podla roku
+    Total_Revenue DESC; -- Triedenie podla celkovych prijmov v zostupnom poradi
 
 SELECT * FROM analysis.genre_yearly_revenue_stats;
