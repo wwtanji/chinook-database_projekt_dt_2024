@@ -185,23 +185,6 @@ FROM employee_staging;
 > **Typ dimenzie: _SCD1 (Slowly Changing Dimensions - Prepísanie starej hodnoty)_**<br>
 > Údaje o zamestnancoch môžu byť aktualizované podľa potreby.
 ---
-- `dim_track_genre` - Kombinuje informácie o skladbách a žánroch, čím vytvára vzťah medzi týmito dvoma prvkami.<br> 
-
-Tabuľka bola vytvorená pomocou `JOIN` medzi tabuľkami `genre_staging g` a počiatočnou tabuľkou `track_staging`.
-
-```sql
-CREATE OR REPLACE TABLE dim_track_genre AS
-SELECT DISTINCT
-    t.TrackId AS dim_track_trackId,
-    t.GenreId AS dim_genre_genreId
-FROM track_staging t
-JOIN genre_staging g
-ON t.GenreId = g.GenreId;
-```
-
-> **Typ dimenzie: _SCD0 (Slowly Changing Dimensions - Zachovanie pôvodnej hodnoty)_**<br>
-> Asociácia medzi skladbami a žánrami sa považuje za statickú.
----
 
 - `dim_tracks` - Obsahuje detaily o skladbách, vrátane názvov, autorov, pridružených albumov a playlistov.
 
@@ -210,14 +193,16 @@ Tabuľka bola vytvorená pomocou `LEFT JOIN` medzi tabuľkou `dim_albums a` a po
 ```sql
 CREATE OR REPLACE TABLE dim_tracks AS
 SELECT DISTINCT
-    t.TrackId AS trackId,
-    t.Name AS track_name,
-    t.Composer AS track_author,
-    t.AlbumId AS albumId,
-    a.ALBUM_TITLE AS playlistName
-FROM track_staging t
+    t.trackId AS trackId,        
+    t.track_name AS track_name,  
+    t.track_author AS track_author,
+    f.dim_albums_albumId AS albumId,
+    a.album_name AS playlistName    
+FROM dim_tracks t
+LEFT JOIN fact_sales f
+    ON t.trackId = f.dim_tracks_trackId
 LEFT JOIN dim_albums a
-ON t.AlbumId = a.ALBUMID;
+    ON f.dim_albums_albumId = a.albumId; 
 ```
 > **Typ dimenzie: _SCD0 (Slowly Changing Dimensions - Zachovanie pôvodnej hodnoty)_**<br>
 > Informácie o skladbách sú v tomto datasete statické.
@@ -445,9 +430,7 @@ FROM
 JOIN
     etl_staging.dim_tracks t ON f.dim_tracks_trackId = t.trackId 
 JOIN
-    etl_staging.dim_track_genre tg ON t.trackId = tg.dim_track_trackId
-JOIN
-    etl_staging.dim_genres g ON tg.dim_genre_genreId = g.genreId 
+    etl_staging.dim_genres g ON t.dim_genres_genreId = g.genreId 
 JOIN
     etl_staging.dim_date d ON f.dateId = d.dateId 
 GROUP BY
