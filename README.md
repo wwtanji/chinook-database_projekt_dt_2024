@@ -42,7 +42,6 @@ Pôvodné dáta sú organizované v relačnom modeli, ktorý je zobrazený na **
 ## **2. Dimenzionálny model**
 
 Navrhnutý bol **hviezdicový model (star schema)**, pre efektívnu analýzu kde centrálny bod predstavuje faktová tabuľka **`fact_sales`**, ktorá je prepojená s nasledujúcimi dimenziami:
-- **`dim_genres`**: Obsahuje informácie o hudobných žánroch.
 - **`dim_tracks`**: Poskytuje detaily o skladbách, vrátane názvov, autorov a prepojenia na albumy.
 - **`dim_albums`**: Uchováva informácie o hudobných albumoch a ich prepojení s interpretmi.
 - **`dim_artist`**: Obsahuje detaily o interpretoch, ako meno, vek, pohlavie a národnosť.
